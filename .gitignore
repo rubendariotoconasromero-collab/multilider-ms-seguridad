@@ -1,0 +1,19 @@
+## .NET
+bin/
+obj/
+
+## Visual Studio
+.vs/
+*.user
+*.suo
+
+## Rider / VS Code
+.idea/
+.vscode/
+
+## Logs
+*.log
+
+## Local settings (secrets)
+appsettings.Development.json
+appsettings.*.local.json

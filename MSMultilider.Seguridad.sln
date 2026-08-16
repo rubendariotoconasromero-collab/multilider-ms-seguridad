@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.6.11822.322 stable
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSMultilider.Seguridad", "MSMultilider.Seguridad.csproj", "{EC56F1F0-6525-26E4-56FD-42F909D89BEA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EC56F1F0-6525-26E4-56FD-42F909D89BEA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC56F1F0-6525-26E4-56FD-42F909D89BEA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC56F1F0-6525-26E4-56FD-42F909D89BEA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC56F1F0-6525-26E4-56FD-42F909D89BEA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5CD18293-F4B8-4CD7-8AAB-CC99AF96DC2A}
+	EndGlobalSection
+EndGlobal

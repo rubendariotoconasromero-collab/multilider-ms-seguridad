@@ -1,0 +1,6 @@
+@MSMultilider.Seguridad_HostAddress = http://localhost:5211
+
+GET {{MSMultilider.Seguridad_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
