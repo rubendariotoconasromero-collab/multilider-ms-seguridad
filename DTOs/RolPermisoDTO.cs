@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 namespace MSMultilider.Seguridad.DTOs
 {
     public class RolPermisoDTO
@@ -11,7 +12,7 @@ namespace MSMultilider.Seguridad.DTOs
 
     public class RolPermisoCreateDTO
     {
-        public int RolId { get; set; }
-        public int PermisoId { get; set; }
+        [Range(1,int.MaxValue)] public int RolId { get; set; }
+        [Range(1,int.MaxValue)] public int PermisoId { get; set; }
     }
 }

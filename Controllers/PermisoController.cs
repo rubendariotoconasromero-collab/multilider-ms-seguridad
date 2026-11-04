@@ -7,7 +7,7 @@ namespace MSMultilider.Seguridad.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize(Policy="acceso_permisos")]
     public class PermisoController : ControllerBase
     {
         private readonly IPermisoService _service;

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 namespace MSMultilider.Seguridad.DTOs
 {
     public class UsuarioDTO
@@ -11,16 +13,16 @@ namespace MSMultilider.Seguridad.DTOs
 
     public class UsuarioCreateDTO
     {
-        public string Nombre { get; set; } = string.Empty;
-        public string Correo { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
+        [Required, StringLength(255)] public string Nombre { get; set; } = string.Empty;
+        [Required, EmailAddress, StringLength(255)] public string Correo { get; set; } = string.Empty;
+        [Required] public string Password { get; set; } = string.Empty;
         public bool Estado { get; set; } = true;
     }
 
     public class UsuarioUpdateDTO
     {
-        public string? Nombre { get; set; }
-        public string? Correo { get; set; }
+        [MinLength(1), StringLength(255)] public string? Nombre { get; set; }
+        [EmailAddress, StringLength(255)] public string? Correo { get; set; }
         public string? Password { get; set; }
         public bool? Estado { get; set; }
     }
@@ -44,6 +46,6 @@ namespace MSMultilider.Seguridad.DTOs
 
     public class SyncAsignacionesDTO
     {
-        public List<int> RolPermisoIds { get; set; } = new();
+        [Required, JsonRequired] public List<int> RolPermisoIds { get; set; } = new();
     }
 }

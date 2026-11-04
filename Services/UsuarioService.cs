@@ -16,8 +16,10 @@ namespace MSMultilider.Seguridad.Services
 
         public async Task<List<UsuarioDTO>> GetAllAsync()
         {
-            var usuarios = await _context.Usuarios.ToListAsync();
-            return usuarios.Select(MapToDTO).ToList();
+            var ids = await _context.Usuarios.Select(x => x.Id).ToListAsync();
+            var usuarios = new List<UsuarioDTO>();
+            foreach (var id in ids) usuarios.Add((await GetByIdAsync(id))!);
+            return usuarios;
         }
 
         public async Task<UsuarioDTO?> GetByIdAsync(int id)
@@ -96,18 +98,13 @@ namespace MSMultilider.Seguridad.Services
 
         public async Task SyncAsignacionesAsync(int userId, List<int> rolPermisoIds)
         {
-            var existentes = _context.RolPermisoUsuarios.Where(rpu => rpu.UserId == userId);
-            _context.RolPermisoUsuarios.RemoveRange(existentes);
-
-            var nuevas = rolPermisoIds.Select(rpId => new RolPermisoUsuario
-            {
-                UserId = userId,
-                RolPermisoId = rpId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
-
-            _context.RolPermisoUsuarios.AddRange(nuevas);
+            if (!await _context.Usuarios.AnyAsync(x=>x.Id==userId)) throw new KeyNotFoundException();
+            rolPermisoIds=rolPermisoIds.Distinct().ToList();
+            if(await _context.RolPermisos.CountAsync(x=>rolPermisoIds.Contains(x.Id))!=rolPermisoIds.Count) throw new ArgumentException();
+            var existentes = await _context.RolPermisoUsuarios.Where(x=>x.UserId==userId).ToListAsync();
+            _context.RolPermisoUsuarios.RemoveRange(existentes.Where(x=>!rolPermisoIds.Contains(x.RolPermisoId)));
+            foreach(var id in rolPermisoIds.Where(id=>!existentes.Any(x=>x.RolPermisoId==id)))
+                _context.RolPermisoUsuarios.Add(new RolPermisoUsuario {UserId=userId,RolPermisoId=id,CreatedAt=DateTime.UtcNow,UpdatedAt=DateTime.UtcNow});
             await _context.SaveChangesAsync();
         }
 
@@ -125,7 +122,7 @@ namespace MSMultilider.Seguridad.Services
             Nombre = u.Nombre,
             Correo = u.Correo,
             Estado = u.Estado,
-            RolesPermisos = u.RolPermisoUsuarios.Select(rpu => new RolPermisoAsignadoDTO
+            RolesPermisos = u.RolPermisoUsuarios.Where(rpu => rpu.RolPermiso.Rol.Estado && rpu.RolPermiso.Permiso.Estado).Select(rpu => new RolPermisoAsignadoDTO
             {
                 RolPermisoId = rpu.RolPermisoId,
                 RolId = rpu.RolPermiso.RolId,

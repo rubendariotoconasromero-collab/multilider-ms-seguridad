@@ -28,6 +28,7 @@ namespace MSMultilider.Seguridad.Services
 
         public async Task<PermisoDTO> CreateAsync(PermisoCreateDTO dto)
         {
+            if(await _context.Permisos.AnyAsync(x=>x.Nombre==dto.Nombre)) throw new ArgumentException();
             var permiso = new Permiso
             {
                 Nombre = dto.Nombre,
@@ -47,6 +48,7 @@ namespace MSMultilider.Seguridad.Services
             var permiso = await _context.Permisos.FindAsync(id);
             if (permiso == null) return null;
 
+            if(await _context.Permisos.AnyAsync(x=>x.Nombre==dto.Nombre && x.Id!=id)) throw new ArgumentException();
             permiso.Nombre = dto.Nombre;
             permiso.Descripcion = dto.Descripcion;
             permiso.Estado = dto.Estado;
@@ -70,7 +72,8 @@ namespace MSMultilider.Seguridad.Services
         {
             Id = p.Id,
             Nombre = p.Nombre,
-            Descripcion = p.Descripcion
+            Descripcion = p.Descripcion,
+            Estado = p.Estado
         };
     }
 }

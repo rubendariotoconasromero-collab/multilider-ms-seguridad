@@ -36,6 +36,8 @@ namespace MSMultilider.Seguridad.Services
 
         public async Task<RolPermisoDTO> CreateAsync(RolPermisoCreateDTO dto)
         {
+            if(!await _context.Roles.AnyAsync(x=>x.Id==dto.RolId) || !await _context.Permisos.AnyAsync(x=>x.Id==dto.PermisoId) ||
+                await _context.RolPermisos.AnyAsync(x=>x.RolId==dto.RolId && x.PermisoId==dto.PermisoId)) throw new ArgumentException();
             var rolPermiso = new RolPermiso
             {
                 RolId = dto.RolId,

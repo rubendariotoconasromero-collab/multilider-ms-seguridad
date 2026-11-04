@@ -1,91 +1,58 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.EntityFrameworkCore;
 using MSMultilider.Seguridad.DTOs;
 using MSMultilider.Seguridad.Services;
-using System.IdentityModel.Tokens.Jwt;
+using MSMultilider.Seguridad.Repositories;
 using System.Security.Claims;
-using System.Text;
-
-namespace MSMultilider.Seguridad.Controllers
-{
-    [Route("api/[controller]")]
-    [ApiController]
-    public class AuthController : ControllerBase
-    {
-        private readonly IUsuarioService _usuarioService;
-        private readonly IConfiguration _configuration;
-
-        public AuthController(IUsuarioService usuarioService, IConfiguration configuration)
-        {
-            _usuarioService = usuarioService;
-            _configuration = configuration;
-        }
-
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] AuthRequest request)
-        {
-            var usuario = await _usuarioService.ValidateCredentialsAsync(request.Correo, request.Password);
-
-            if (usuario == null)
-                return Unauthorized(new { message = "Las credenciales proporcionadas son incorrectas." });
-
-            if (!usuario.Estado)
-                return StatusCode(403, new { message = "Tu cuenta ha sido desactivada. Contacta al administrador." });
-
-            var usuarioDTO = await _usuarioService.GetByIdAsync(usuario.Id);
-            var token = GenerateJwtToken(usuario.Id, usuario.Correo, usuario.Nombre, usuarioDTO!);
-
-            return Ok(new LoginResponseDTO
-            {
-                Message = "¡Bienvenido al sistema!",
-                AccessToken = token,
-                TokenType = "Bearer",
-                User = usuarioDTO!
-            });
-        }
-
-        [HttpGet("me")]
-        [Microsoft.AspNetCore.Authorization.Authorize]
-        public async Task<IActionResult> Me()
-        {
-            var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-            if (userIdClaim == null) return Unauthorized();
-
-            var usuario = await _usuarioService.GetByIdAsync(int.Parse(userIdClaim));
-            if (usuario == null) return NotFound();
-
-            return Ok(usuario);
-        }
-
-        private string GenerateJwtToken(int userId, string correo, string nombre, UsuarioDTO usuarioDTO)
-        {
-            var jwtKey = _configuration["Jwt:Key"]!;
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var claims = new List<Claim>
-            {
-                new Claim(JwtRegisteredClaimNames.Sub,   userId.ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, correo),
-                new Claim(JwtRegisteredClaimNames.Name,  nombre),
-                new Claim(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString())
-            };
-
-            // Incluir cada permiso del usuario como claim individual
-            foreach (var rp in usuarioDTO.RolesPermisos)
-            {
-                claims.Add(new Claim("permission", rp.NombrePermiso));
-            }
-
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.UtcNow.AddHours(8),
-                signingCredentials: creds
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
-        }
+namespace MSMultilider.Seguridad.Controllers;
+[ApiController, Route("api/auth")]
+public class AuthController(ContextDatabase db,IUsuarioService users,IdentityProtocol identity):ControllerBase {
+    private int Subject => int.Parse(User.FindFirstValue("sub")!);
+    [HttpPost("login"), Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("login")]
+    public async Task<IActionResult> Login(AuthRequest request,CancellationToken ct) {
+        var user=db.Database.ProviderName?.Contains("MySql")==true
+            ? (await db.Usuarios.FromSqlInterpolated($"SELECT * FROM users WHERE correo = {request.Correo} FOR UPDATE").ToListAsync(ct)).SingleOrDefault()
+            : await db.Usuarios.SingleOrDefaultAsync(x=>x.Correo==request.Correo,ct);
+        if(user is null || !BCrypt.Net.BCrypt.Verify(request.Password,user.Password))
+            return Unauthorized(new {message="Las credenciales proporcionadas son incorrectas."});
+        if(!user.Estado) return StatusCode(403,new {message="Tu cuenta ha sido desactivada. Contacta al administrador."});
+        var dto=(await users.GetByIdAsync(user.Id))!;
+        var token=await identity.Issue(user,dto,ct);
+        return Ok(new LoginResponseDTO {Message="¡Bienvenido al sistema!",AccessToken=token,User=dto});
+    }
+    [HttpGet("me"), HttpGet("profile"), Authorize]
+    public async Task<IActionResult> Me() => Ok(await users.GetByIdAsync(Subject));
+    [HttpPut("profile"), Authorize]
+    public async Task<IActionResult> Profile(OwnProfileDTO dto,CancellationToken ct) {
+        var user=await db.Usuarios.SingleAsync(x=>x.Id==Subject,ct);
+        if(await db.Usuarios.AnyAsync(x=>x.Correo==dto.Correo && x.Id!=Subject,ct))
+            return UnprocessableEntity(new {message="Correo ya registrado.",errors=new {correo=new[]{"El correo ya está registrado."}}});
+        user.Nombre=dto.Nombre;user.Correo=dto.Correo;user.UpdatedAt=DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+        return Ok(new {message="Perfil actualizado correctamente",data=await users.GetByIdAsync(Subject)});
+    }
+    [HttpPut("password"), Authorize]
+    public async Task<IActionResult> Password(OwnPasswordDTO dto,CancellationToken ct) {
+        var user=await db.Usuarios.SingleAsync(x=>x.Id==Subject,ct);
+        if(!BCrypt.Net.BCrypt.Verify(dto.Actual,user.Password))
+            return UnprocessableEntity(new {message="Contraseña actual incorrecta.",errors=new {password_actual=new[]{"La contraseña actual no es correcta."}}});
+        if(!OwnPasswordDTO.Strong(dto.Nuevo) || dto.Nuevo!=dto.Confirmation)
+            return UnprocessableEntity(new {message="Verifica la contraseña nueva.",errors=new {password_nuevo=new[]{"Usa ocho caracteres, mayúscula, minúscula, número y símbolo, con confirmación."}}});
+        user.Password=BCrypt.Net.BCrypt.HashPassword(dto.Nuevo);user.UpdatedAt=DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+        return Ok(new {message="Contraseña actualizada correctamente",reauth_required=true});
+    }
+    // Only signature-verified ownership is needed to revoke this exact jti. No resource access.
+    [HttpPost("logout"), AllowAnonymous]
+    public async Task<IActionResult> Logout(CancellationToken ct) {
+        var header=Request.Headers.Authorization.ToString();
+        if(!header.StartsWith("Bearer ",StringComparison.Ordinal)) return Unauthorized();
+        ClaimsPrincipal principal;
+        try { principal=identity.Verify(header[7..],false); }
+        catch(Microsoft.IdentityModel.Tokens.SecurityTokenException) { return Unauthorized(); }
+        catch(ArgumentException) { return Unauthorized(); }
+        await identity.Revoke(principal,ct);
+        return Ok(new {message="Sesión cerrada correctamente"});
     }
 }

@@ -22,6 +22,9 @@ namespace MSMultilider.Seguridad.Models
         [Column("estado")]
         public bool Estado { get; set; } = true;
 
+        [Column("auth_version")]
+        public long AuthVersion { get; set; }
+
         [Column("created_at")]
         public DateTime? CreatedAt { get; set; }
 

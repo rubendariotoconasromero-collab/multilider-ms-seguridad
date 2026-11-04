@@ -36,6 +36,7 @@ namespace MSMultilider.Seguridad.Services
 
         public async Task<RolDTO> CreateAsync(RolCreateDTO dto)
         {
+            if(await _context.Roles.AnyAsync(x=>x.Nombre==dto.Nombre)) throw new ArgumentException();
             var rol = new Rol
             {
                 Nombre = dto.Nombre,
@@ -55,6 +56,7 @@ namespace MSMultilider.Seguridad.Services
             var rol = await _context.Roles.FindAsync(id);
             if (rol == null) return null;
 
+            if(await _context.Roles.AnyAsync(x=>x.Nombre==dto.Nombre && x.Id!=id)) throw new ArgumentException();
             rol.Nombre = dto.Nombre;
             rol.Descripcion = dto.Descripcion;
             rol.Estado = dto.Estado;
@@ -85,18 +87,16 @@ namespace MSMultilider.Seguridad.Services
 
         public async Task SyncPermisosAsync(int rolId, List<int> permisoIds)
         {
-            var existentes = _context.RolPermisos.Where(rp => rp.RolId == rolId);
-            _context.RolPermisos.RemoveRange(existentes);
-
-            var nuevos = permisoIds.Select(pId => new RolPermiso
-            {
-                RolId = rolId,
-                PermisoId = pId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
-
-            _context.RolPermisos.AddRange(nuevos);
+            if (!await _context.Roles.AnyAsync(x=>x.Id==rolId)) throw new KeyNotFoundException();
+            permisoIds=permisoIds.Distinct().ToList();
+            if(await _context.Permisos.CountAsync(x=>permisoIds.Contains(x.Id))!=permisoIds.Count) throw new ArgumentException();
+            var existentes=await _context.RolPermisos.Where(x=>x.RolId==rolId).ToListAsync();
+            var obsolete=existentes.Where(x=>!permisoIds.Contains(x.PermisoId)).ToList();
+            var obsoleteIds=obsolete.Select(x=>x.Id).ToList();
+            _context.RolPermisoUsuarios.RemoveRange(await _context.RolPermisoUsuarios.Where(x=>obsoleteIds.Contains(x.RolPermisoId)).ToListAsync());
+            _context.RolPermisos.RemoveRange(obsolete);
+            foreach(var id in permisoIds.Where(id=>!existentes.Any(x=>x.PermisoId==id)))
+                _context.RolPermisos.Add(new RolPermiso {RolId=rolId,PermisoId=id,CreatedAt=DateTime.UtcNow,UpdatedAt=DateTime.UtcNow});
             await _context.SaveChangesAsync();
         }
 
@@ -110,7 +110,8 @@ namespace MSMultilider.Seguridad.Services
             {
                 Id = rp.Permiso.Id,
                 Nombre = rp.Permiso.Nombre,
-                Descripcion = rp.Permiso.Descripcion
+                Descripcion = rp.Permiso.Descripcion,
+                Estado = rp.Permiso.Estado
             }).ToList()
         };
     }

@@ -17,3 +17,6 @@ obj/
 ## Local settings (secrets)
 appsettings.Development.json
 appsettings.*.local.json
+
+TestResults/
+.artifacts/

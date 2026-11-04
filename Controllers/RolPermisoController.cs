@@ -17,14 +17,14 @@ namespace MSMultilider.Seguridad.Controllers
             _service = service;
         }
 
-        [HttpGet]
+        [HttpGet, Authorize(Policy="assignment_catalog")]
         public async Task<IActionResult> Index()
         {
             var rolPermisos = await _service.GetAllAsync();
             return Ok(rolPermisos);
         }
 
-        [HttpGet("{id}")]
+        [HttpGet("{id}"), Authorize(Policy="assignment_catalog")]
         public async Task<IActionResult> Show(int id)
         {
             var rp = await _service.GetByIdAsync(id);
@@ -32,7 +32,7 @@ namespace MSMultilider.Seguridad.Controllers
             return Ok(rp);
         }
 
-        [HttpPost]
+        [HttpPost, Authorize(Policy="acceso_roles")]
         public async Task<IActionResult> Store([FromBody] RolPermisoCreateDTO dto)
         {
             var rp = await _service.CreateAsync(dto);
@@ -40,7 +40,7 @@ namespace MSMultilider.Seguridad.Controllers
                 new { message = "Asignación creada con éxito", data = rp });
         }
 
-        [HttpDelete("{id}")]
+        [HttpDelete("{id}"), Authorize(Policy="acceso_roles")]
         public async Task<IActionResult> Destroy(int id)
         {
             var result = await _service.DeleteAsync(id);

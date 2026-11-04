@@ -7,7 +7,7 @@ namespace MSMultilider.Seguridad.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize(Policy="acceso_usuarios")]
     public class UsuarioController : ControllerBase
     {
         private readonly IUsuarioService _service;
@@ -35,6 +35,7 @@ namespace MSMultilider.Seguridad.Controllers
         [HttpPost]
         public async Task<IActionResult> Store([FromBody] UsuarioCreateDTO dto)
         {
+            if(!OwnPasswordDTO.Strong(dto.Password)) return UnprocessableEntity(new {message="Contraseña no válida.",errors=new {password=new[]{"Usa una contraseña segura."}}});
             var usuario = await _service.CreateAsync(dto);
             return CreatedAtAction(nameof(Show), new { id = usuario.Id },
                 new { message = "Usuario creado con éxito", data = usuario });
@@ -43,6 +44,7 @@ namespace MSMultilider.Seguridad.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UsuarioUpdateDTO dto)
         {
+            if(!string.IsNullOrEmpty(dto.Password) && !OwnPasswordDTO.Strong(dto.Password)) return UnprocessableEntity(new {message="Contraseña no válida."});
             var usuario = await _service.UpdateAsync(id, dto);
             if (usuario == null) return NotFound();
             return Ok(new { message = "Usuario actualizado", data = usuario });

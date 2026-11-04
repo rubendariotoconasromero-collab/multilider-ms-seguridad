@@ -7,7 +7,7 @@ namespace MSMultilider.Seguridad.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize(Policy="acceso_roles")]
     public class RolController : ControllerBase
     {
         private readonly IRolService _service;
