@@ -88,10 +88,10 @@ public sealed class OperationsController(ContextDatabase db,IConfiguration confi
                 "reverse"=>grant.Kind=="anulacion" && grant.State=="Anulando",
                 "release" or "abort-finance"=>grant.Kind=="venta" && grant.State=="Abortada",
                 "identity"=>grant.Kind is "cliente" or "asesor" && grant.State=="Admitida" && await Active(grant,ct),
-                "abort"=>caller=="comercial" && grant.State=="Admitida",
+                "abort"=>caller=="comercial" && grant.Kind=="venta" && grant.State is "Admitida" or "Abortada",
                 _=>false};
             if(!valid)throw new ProtocolException("La autorización no permite este paso.",403);
-            if(r.Action=="abort"){grant.State="Abortada";grant.UpdatedAt=DateTime.UtcNow;await db.SaveChangesAsync(ct);}
+            if(r.Action=="abort" && grant.State=="Admitida"){grant.State="Abortada";grant.UpdatedAt=DateTime.UtcNow;await db.SaveChangesAsync(ct);}
         }
         if(tx is not null)await tx.CommitAsync(ct);return new JsonResult(await Reply(grant,ct),OperationProtocol.Json);
     }
