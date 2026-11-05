@@ -3,7 +3,7 @@ using MSMultilider.Seguridad.Repositories;
 namespace MSMultilider.Seguridad.Services;
 public sealed class AuthorityMutationMiddleware(RequestDelegate next) {
     public async Task InvokeAsync(HttpContext context,ContextDatabase db) {
-        if(context.GetEndpoint() is not null && !HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method) && !HttpMethods.IsOptions(context.Request.Method)) {
+        if(context.GetEndpoint() is not null && !context.Request.Path.StartsWithSegments("/internal/identity") && !HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method) && !HttpMethods.IsOptions(context.Request.Method)) {
             await using var tx=await db.Database.BeginTransactionAsync(context.RequestAborted);
             await db.LockAuthority(context.RequestAborted);
             var output=context.Response.Body;

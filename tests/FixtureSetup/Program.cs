@@ -15,7 +15,9 @@ if(connection.Server!="127.0.0.1" || connection.Port.ToString()!=Environment.Get
     throw new InvalidOperationException("Unsafe SQL connection.");
 connection.Database="multilider_identity_fresh_tests_isolated";
 await using var db=new ContextDatabase(new DbContextOptionsBuilder<ContextDatabase>().UseMySql(connection.ConnectionString,new MySqlServerVersion(new Version(8,0,0))).Options);
-await db.Database.MigrateAsync();
+// Characterize the reversible F3 baseline before applying F5's deliberately durable decisions.
+var phase3=db.Database.GetMigrations().Single(id=>id.EndsWith("_IdentitySessions",StringComparison.Ordinal));
+await db.GetService<IMigrator>().MigrateAsync(db.GetService<IMigrationsIdGenerator>().GetName(phase3));
 var hash=BCrypt.Net.BCrypt.HashPassword("Recovery-test-Password-42!",4);
 var user=new Usuario {Nombre="Recovery fixture",Correo="recovery@example.test",Password=hash};db.Add(user);await db.SaveChangesAsync();
 var userId=user.Id;

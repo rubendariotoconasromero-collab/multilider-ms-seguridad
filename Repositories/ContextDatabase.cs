@@ -47,6 +47,10 @@ namespace MSMultilider.Seguridad.Repositories
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<OperationGrant>().HasIndex(x=>x.UserId);
+            modelBuilder.Entity<ProfileIdentityReceipt>().HasKey(x=>x.Id);
+            modelBuilder.Entity<ProfileBinding>().HasKey(x=>x.Id);
+            modelBuilder.Entity<OperationGrant>().HasIndex(x=>x.ParentId);
             modelBuilder.Entity<Usuario>().Property(x=>x.AuthVersion).IsConcurrencyToken();
             modelBuilder.Entity<AuthSession>().HasIndex(x=>x.ExpiresAt);
             modelBuilder.Entity<AuthSession>().HasIndex(x=>x.UserId);

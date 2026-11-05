@@ -1,3 +1,4 @@
+using Multilider.Operations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -99,22 +100,33 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+builder.Services.AddSingleton<OperationChannel>();
+builder.WebHost.ConfigureKestrel((context,options)=>OperationProtocol.ConfigureTls(context,options,builder.Configuration));
 var app = builder.Build();
+if(args.Contains("--preflight-f5")) {
+    await using var scope=app.Services.CreateAsyncScope();
+    await OperationProtocol.PrintPreflight(scope.ServiceProvider.GetRequiredService<ContextDatabase>(),builder.Configuration,"seguridad");
+    return;
+}
+
 // Explicit operator command only. Never migrate or seed when starting the HTTP service.
 if(args.Contains("--migrate-identity")) {
     await using var scope=app.Services.CreateAsyncScope();
-    await scope.ServiceProvider.GetRequiredService<ContextDatabase>().Database.MigrateAsync();
+    var db=scope.ServiceProvider.GetRequiredService<ContextDatabase>();
+    if(!string.IsNullOrWhiteSpace(builder.Configuration["Operations:Dataset"]))await OperationProtocol.PrintPreflight(db,builder.Configuration,"seguridad");
+    await db.Database.MigrateAsync();
     return;
 }
 if(string.IsNullOrWhiteSpace(builder.Configuration["Jwt:Issuer"]) || string.IsNullOrWhiteSpace(builder.Configuration["Jwt:Audience"]) ||
     Encoding.UTF8.GetByteCount(builder.Configuration["Jwt:Key"] ?? "")<32) throw new InvalidOperationException("Configure Jwt:Issuer, Jwt:Audience and a Jwt:Key of at least 32 bytes.");
 app.Use(async(context,next)=> {
     try { await next(); }
+    catch(ProtocolException e) { context.Response.StatusCode=e.Status;await context.Response.WriteAsJsonAsync(new {message=e.Message}); }
     catch(KeyNotFoundException) { context.Response.StatusCode=404;await context.Response.WriteAsJsonAsync(new {message="Recurso no encontrado."}); }
     catch(ArgumentException) { context.Response.StatusCode=422;await context.Response.WriteAsJsonAsync(new {message="Datos no válidos."}); }
     catch(DbUpdateConcurrencyException) { context.Response.StatusCode=409;await context.Response.WriteAsJsonAsync(new {message="Conflicto; vuelve a consultar el estado."}); }
     catch(DbUpdateException) { context.Response.StatusCode=422;await context.Response.WriteAsJsonAsync(new {message="Datos duplicados o referencias no válidas."}); }
-    catch(Exception) { context.Response.StatusCode=503;await context.Response.WriteAsJsonAsync(new {message="Seguridad no está disponible."}); }
+    catch(Exception e) { context.RequestServices.GetRequiredService<ILogger<Program>>().LogError("Security operation failed: {FailureType}",e.GetType().FullName); context.Response.StatusCode=503;await context.Response.WriteAsJsonAsync(new {message="Seguridad no está disponible."}); }
 });
 
 app.UseSwagger();
@@ -123,6 +135,7 @@ app.UseSwaggerUI();
 app.UseCors("AllowFrontend");
 app.UseRateLimiter();
 app.UseMiddleware<AuthorityMutationMiddleware>();
+app.UseMiddleware<OperationProtocolMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
