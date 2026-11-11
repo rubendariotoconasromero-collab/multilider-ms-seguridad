@@ -42,7 +42,9 @@ public sealed class OperationsController(ContextDatabase db,IConfiguration confi
         if(r.Kind=="anulacion") {
             if(r.ParentOperationId is null)throw new ProtocolException("Falta venta de origen.",422);
             var parent=await Find(r.ParentOperationId.Value,ct);
-            if(parent.Kind!="venta" || parent.ResourceId!=r.ResourceId || parent.State!="Confirmando")
+            var eligibleParent = parent.Kind=="venta" && parent.State=="Confirmando"
+                || parent.Kind=="venta_importada" && parent.State=="Importada";
+            if(!eligibleParent || parent.ResourceId!=r.ResourceId)
                 throw new ProtocolException("Venta de origen incompatible.",409);
         } else if(r.ParentOperationId is not null)throw new ProtocolException("Vínculo no permitido.",422);
         if(previous is not null) {
