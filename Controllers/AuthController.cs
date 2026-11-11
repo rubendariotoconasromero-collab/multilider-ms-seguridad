@@ -23,6 +23,29 @@ public class AuthController(ContextDatabase db,IUsuarioService users,IdentityPro
     }
     [HttpGet("me"), HttpGet("profile"), Authorize]
     public async Task<IActionResult> Me() => Ok(await users.GetByIdAsync(Subject));
+
+    [HttpGet("destinatarios-informe"), Authorize]
+    public async Task<IActionResult> ReportRecipients(string? ids, int page = 1, int size = 100, CancellationToken ct = default)
+    {
+        var user = await users.GetByIdAsync(Subject);
+        if (user is null) return Unauthorized();
+        var permissions = user.RolesPermisos.Select(x => x.NombrePermiso);
+        var allowed = new[] { "acceso_historial_ventas", "acceso_pagos", "acceso_egresos", "acceso_propiedades" };
+        if (!permissions.Intersect(allowed).Any()) return Forbid();
+        var query = db.Usuarios.AsNoTracking().Where(x => x.Estado && x.Correo != "");
+        if (ids is not null)
+        {
+            var selection = ids.Split(',').Select(x => int.TryParse(x, out var id) ? id : 0).Distinct().ToArray();
+            if (selection.Length is < 1 or > 100 || selection.Any(x => x <= 0)) return UnprocessableEntity();
+            query = query.Where(x => selection.Contains(x.Id));
+        }
+        page = Math.Clamp(page, 1, 1000000);
+        size = Math.Clamp(size, 1, 100);
+        var total = await query.CountAsync(ct);
+        var data = await query.OrderBy(x => x.Nombre).ThenBy(x => x.Id).Skip((page - 1) * size).Take(size)
+            .Select(x => new { id = x.Id, nombre = x.Nombre, correo = x.Correo }).ToListAsync(ct);
+        return Ok(new { data, total, last_page = Math.Max(1, (int)Math.Ceiling((double)total / size)) });
+    }
     [HttpPut("profile"), Authorize]
     public async Task<IActionResult> Profile(OwnProfileDTO dto,CancellationToken ct) {
         var user=await db.Usuarios.SingleAsync(x=>x.Id==Subject,ct);
